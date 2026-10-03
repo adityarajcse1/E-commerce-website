@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>E-commerce Web App</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.4; }
+    section { border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; border-radius: 6px; }
+    input, button, select { margin: 4px 0; padding: 6px; }
+    .grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    pre { background: #f5f5f5; padding: 8px; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>E-commerce Web App</h1>
+
+  <section>
+    <h2>Authentication</h2>
+    <div>
+      <input id="username" placeholder="username" />
+      <input id="password" type="password" placeholder="password" />
+      <button id="registerBtn">Register</button>
+      <button id="loginBtn">Login</button>
+    </div>
+    <p>Demo users: <strong>alice/alice123</strong> and admin <strong>admin/admin123</strong>.</p>
+    <pre id="authStatus">Not logged in</pre>
+  </section>
+
+  <section>
+    <h2>Browse Products</h2>
+    <input id="search" placeholder="search products" />
+    <input id="category" placeholder="category filter" />
+    <button id="searchBtn">Search</button>
+    <div id="products" class="grid"></div>
+  </section>
+
+  <section>
+    <h2>Cart & Checkout</h2>
+    <button id="refreshCartBtn">Refresh Cart</button>
+    <input id="paymentMethod" placeholder="payment method (simulated)" value="card" />
+    <button id="checkoutBtn">Checkout</button>
+    <pre id="cart"></pre>
+    <pre id="checkout"></pre>
+  </section>
+
+  <section>
+    <h2>Order History</h2>
+    <button id="ordersBtn">Load Orders</button>
+    <pre id="orders"></pre>
+  </section>
+
+  <section>
+    <h2>Admin Panel (add/edit items)</h2>
+    <div>
+      <input id="adminName" placeholder="name" />
+      <input id="adminCategory" placeholder="category" />
+      <input id="adminPrice" type="number" step="0.01" placeholder="price" />
+      <input id="adminStock" type="number" step="1" placeholder="stock" />
+      <input id="adminDesc" placeholder="description" />
+      <button id="addProductBtn">Add Product</button>
+    </div>
+    <div>
+      <input id="editId" type="number" placeholder="product id" />
+      <input id="editPrice" type="number" step="0.01" placeholder="new price" />
+      <button id="editProductBtn">Update Product Price</button>
+    </div>
+    <pre id="adminOutput"></pre>
+  </section>
+
+  <script>
+    let token = '';
+    let user = null;
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: 'Bearer ' + token } : {}),
+          ...(options.headers || {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function byId(id) { return document.getElementById(id); }
+    function show(id, value) { byId(id).textContent = JSON.stringify(value, null, 2); }
+
+    async function loadProducts() {
+      try {
+        const search = encodeURIComponent(byId('search').value || '');
+        const category = encodeURIComponent(byId('category').value || '');
+        const { products } = await api(`/api/products?search=${search}&category=${category}`, { method: 'GET' });
+        const productsEl = byId('products');
+        productsEl.innerHTML = '';
+        products.forEach((p) => {
+          const card = document.createElement('div');
+          card.innerHTML = `<strong>${p.name}</strong><br/>Category: ${p.category}<br/>Price: $${p.price}<br/>Stock: ${p.stock}<br/><button data-id="${p.id}">Add to Cart</button>`;
+          card.querySelector('button').onclick = async () => {
+            try {
+              const data = await api('/api/cart/add', { method: 'POST', body: JSON.stringify({ productId: p.id, quantity: 1 }) });
+              show('cart', data.cart);
+            } catch (err) {
+              alert(err.message);
+            }
+          };
+          productsEl.appendChild(card);
+        });
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    byId('registerBtn').onclick = async () => {
+      try {
+        const data = await api('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ username: byId('username').value, password: byId('password').value })
+        });
+        show('authStatus', { message: 'Registered', user: data.user });
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    byId('loginBtn').onclick = async () => {
+      try {
+        const data = await api('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username: byId('username').value, password: byId('password').value })
+        });
+        token = data.token;
+        user = data.user;
+        show('authStatus', { message: 'Logged in', user });
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    byId('searchBtn').onclick = loadProducts;
+    byId('refreshCartBtn').onclick = async () => {
+      try {
+        const data = await api('/api/cart', { method: 'GET' });
+        show('cart', data.cart);
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    byId('checkoutBtn').onclick = async () => {
+      try {
+        const data = await api('/api/checkout', {
+          method: 'POST',
+          body: JSON.stringify({ paymentMethod: byId('paymentMethod').value })
+        });
+        show('checkout', data.order);
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    byId('ordersBtn').onclick = async () => {
+      try {
+        const data = await api('/api/orders', { method: 'GET' });
+        show('orders', data.orders);
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    byId('addProductBtn').onclick = async () => {
+      try {
+        const data = await api('/api/admin/products', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: byId('adminName').value,
+            category: byId('adminCategory').value,
+            price: Number(byId('adminPrice').value),
+            stock: Number(byId('adminStock').value),
+            description: byId('adminDesc').value
+          })
+        });
+        show('adminOutput', data.product);
+        await loadProducts();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    byId('editProductBtn').onclick = async () => {
+      try {
+        const id = Number(byId('editId').value);
+        const price = Number(byId('editPrice').value);
+        const data = await api(`/api/admin/products/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ price })
+        });
+        show('adminOutput', data.product);
+        await loadProducts();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    loadProducts();
+  </script>
+</body>
+</html>

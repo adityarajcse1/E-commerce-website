@@ -1,2 +1,22 @@
 # E-commerce-website
-E-commerce Web App: Users can browse products, add to cart, and checkout (simulate payments). Admin panel to add/edit items. Features: user auth, product search/filter, order history. 
+
+Minimal full-stack e-commerce web app with:
+- user auth (register/login),
+- product browsing with search/filter,
+- cart and checkout with simulated payment status,
+- order history,
+- admin panel APIs to add/edit products.
+
+## Run
+
+```bash
+npm start
+```
+
+Open `http://localhost:3000`.
+
+## Test
+
+```bash
+npm test
+```
